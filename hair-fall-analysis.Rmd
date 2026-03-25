@@ -1,0 +1,462 @@
+---
+title: "Hair Fall Risk Factors — Exploratory Data Analysis"
+author: "Vicente Just"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: flatly
+    highlight: tango
+    df_print: paged
+  github_document:
+    toc: true
+    toc_depth: 3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center"
+)
+```
+
+## Overview
+
+This analysis explores the **Predict Hair Fall** dataset, which collects data on
+potential risk factors associated with hair loss. The goal is to understand the
+structure of the data, explore relationships between variables, and evaluate
+whether hair loss is driven by a single factor or by a combination of conditions.
+
+---
+
+## 1 — Dataset Loading and Initial Inspection
+
+```{r load-libraries-and-data, echo = FALSE}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(datasets)
+library(openxlsx)
+
+# Load the dataset
+HairFallH <- read_csv("Predict Hair Fall.csv")
+
+# Preview the first records
+head(HairFallH)
+```
+
+### Dataset Structure
+
+```{r dataset-structure, echo = FALSE}
+cat("Number of observations:", nrow(HairFallH), "\n")
+cat("Number of variables:   ", ncol(HairFallH), "\n\n")
+
+cat("Variable names:\n")
+names(HairFallH)
+
+cat("\nData types and structure:\n")
+str(HairFallH)
+
+cat("\nMissing values per variable:\n")
+colSums(is.na(HairFallH))
+
+# Remove rows with missing values (none found, but included as best practice)
+HairFallH <- na.omit(HairFallH)
+
+cat("\nDataset size after cleaning:", dim(HairFallH), "\n")
+
+cat("\nStatistical summary:\n")
+summary(HairFallH)
+```
+
+### Variable Overview
+
+| Type | Variables |
+|---|---|
+| **Categorical** | Genetics, Hormonal Changes, Medical Conditions, Medications & Treatments, Nutritional Deficiencies, Stress, Poor Hair Care Habits, Environmental Factors, Smoking, Weight Loss |
+| **Numerical** | Age, Hair Loss, Id |
+
+**Potential analyses:**
+
+- Frequency tables and bar charts for categorical variables
+- Histograms and boxplots for numerical variables
+- Chi-square tests for associations between categorical variables
+- Correlation analysis between numerical variables
+- t-test or ANOVA for group comparisons
+
+---
+
+## 2 — BOD Dataset Exploration
+
+The built-in R dataset **BOD** (Biochemical Oxygen Demand) is used here to
+demonstrate dataset inspection and export workflows.
+
+### 2.1 — Exploratory Summary
+
+```{r bod-exploration, echo = FALSE}
+data(BOD)
+
+cat("BOD DATASET — BASIC INFORMATION\n")
+cat("Observations:", nrow(BOD), "\n")
+cat("Variables:   ", ncol(BOD), "\n")
+cat("Dimensions:  ", dim(BOD), "\n\n")
+
+cat("Variable names:\n")
+names(BOD)
+
+cat("\nData structure:\n")
+str(BOD)
+
+cat("\nMissing values:\n")
+colSums(is.na(BOD))
+
+cat("\nStatistical summary:\n")
+summary(BOD)
+
+cat("\nDuplicated rows:\n")
+duplicated(BOD)
+```
+
+The BOD dataset contains 6 observations and 2 numeric variables:
+
+- **Time**: days elapsed
+- **demand**: biochemical oxygen demand (mg/L)
+
+No missing values or duplicates are present. Given its small size and temporal
+structure, this dataset is well-suited for scatter/line plots, linear or
+non-linear regression fitting, and organic matter degradation rate analysis.
+
+### 2.2 — Exporting to Excel
+
+```{r bod-export, echo = FALSE}
+file_path <- file.path(getwd(), "BOD_dataset.xlsx")
+write.xlsx(BOD, file_path)
+
+cat("File exported to:", file_path, "\n")
+if (file.exists(file_path)) {
+  cat("✓ Export successful\n")
+} else {
+  cat("✗ Export failed\n")
+}
+```
+
+---
+
+## 3 — Stress, Nutritional Deficiencies, and Hair Loss
+
+### 3.1 — Stress Level by Nutritional Deficiency
+
+```{r stress-nutritional, echo = FALSE}
+library(dplyr)
+
+# Cross-tabulation: Stress vs Nutritional Deficiencies
+stress_nd_table <- table(HairFallH$Stress, HairFallH$`Nutritional Deficiencies`)
+prop_stress_nd   <- prop.table(stress_nd_table)
+round(prop_stress_nd, 2)
+```
+
+Key observations:
+
+- **Low stress**: highest deficiencies in Biotin, Omega-3, and Vitamin A (≈ 0.04 each)
+- **Moderate stress**: Protein, Selenium, and Vitamin D are most prevalent
+- **High stress**: Vitamin D deficiency stands out
+- **Zinc** shows a remarkably consistent pattern across all stress levels, suggesting its influence is independent of stress
+
+The most variable nutrient is **Selenium**, which peaks at 0.45 under high stress
+versus ~0.02 in moderate/low conditions — indicating a strong interaction with
+stress.
+
+### 3.2 — Stress Level and Hair Loss
+
+```{r stress-hairloss, echo = FALSE}
+# Contingency table
+stress_hl_table <- table(HairFallH$`Hair Loss`, HairFallH$Stress)
+cat("Contingency table — Hair Loss vs Stress:\n")
+print(stress_hl_table)
+
+prop_stress_hl <- prop.table(stress_hl_table)
+cat("\nProportions:\n")
+round(prop_stress_hl, 2)
+
+# Bar chart
+barplot(
+  prop_stress_hl,
+  beside  = TRUE,
+  col     = c("#262626", "#b287fd"),
+  legend  = c("No Hair Loss", "Hair Loss"),
+  main    = "Hair loss proportion by stress level",
+  xlab    = "Stress level",
+  ylab    = "Proportion"
+)
+```
+
+Proportions are broadly similar across stress levels, though individuals with
+**moderate stress** show a slightly higher incidence of hair loss. Stress appears
+to be a contributing — rather than determining — factor.
+
+### 3.3 — Nutritional Deficiency and Hair Loss Count
+
+```{r nutritional-hairloss, echo = FALSE}
+# Count per nutritional deficiency
+deficiency_count <- table(HairFallH$`Nutritional Deficiencies`)
+cat("Number of individuals per nutritional deficiency:\n")
+print(deficiency_count)
+
+# Proportions per deficiency
+nd_hl_table  <- table(HairFallH$`Nutritional Deficiencies`, HairFallH$`Hair Loss`)
+proportions  <- prop.table(nd_hl_table, margin = 1)
+cat("\nHair loss proportion by nutritional deficiency:\n")
+print(round(proportions, 3))
+
+# Focus on Hair Loss = 1
+prop_hairloss <- proportions[, "1"]
+cat("\nProportion with hair loss per deficiency:\n")
+print(round(prop_hairloss, 3))
+```
+
+All deficiency types yield proportions between 0.45 and 0.55, with no single
+deficiency exceeding ~55% incidence. This strongly suggests that hair loss is
+**multifactorial** rather than tied to one specific nutritional deficit.
+
+Highest proportions: **Magnesium** (0.548), **Protein** (0.522), **Iron** (0.513)  
+Lowest proportions: **Omega-3** (0.457), **Vitamin E** (0.458), **Biotin** (0.465)
+
+### 3.4 — Smokers Under the Age Mean with Hair Loss, by Stress Level
+
+```{r smokers-filtered, echo = FALSE}
+age_mean <- mean(HairFallH$Age)
+cat("Age mean:", age_mean, "\n")
+
+filtered_34 <- subset(
+  HairFallH,
+  Smoking == "Yes" &
+    Age < age_mean &
+    HairFallH$`Hair Loss` == 1
+)
+
+cat("\nCount by stress level:\n")
+table(filtered_34$Stress)
+```
+
+### 3.5 — Youngest Patients: High Stress, Smoking, Hair Loss, and Medication
+
+```{r youngest-patients, echo = FALSE}
+min_age <- min(HairFallH$Age)
+
+youngest <- subset(
+  HairFallH,
+  Age == min_age &
+    HairFallH$`Hair Loss` == "1" &
+    Smoking == "Yes" &
+    Stress == "High" &
+    HairFallH$`Medications & Treatments` != "No Data"
+)
+
+cat("Nutritional deficiencies in this subgroup:\n")
+table(youngest$`Nutritional Deficiencies`)
+```
+
+Three patients match this profile, each with a **different** nutritional
+deficiency — further confirming the multifactorial nature of hair loss observed
+in section 3.3.
+
+### 3.6 — Hair Loss by Age Group and Stress Level
+
+```{r age-group-stress, echo = FALSE}
+# Define age groups
+AgeGroup <- cut(
+  HairFallH$Age,
+  breaks = c(0, 20, 30, 40, 50),
+  labels = c("≤20", "21–30", "31–40", "41–50")
+)
+
+# Filter to individuals with hair loss
+hair_loss_data <- HairFallH[HairFallH$`Hair Loss` == "1", ]
+age_group_hl   <- AgeGroup[HairFallH$`Hair Loss` == "1"]
+
+# Count by age group
+cat("Hair loss count by age group:\n")
+age_hl_table <- table(age_group_hl)
+print(age_hl_table)
+
+barplot(
+  age_hl_table,
+  col  = c("#262626", "#b287fd", "#b2f142", "#d8d9dd"),
+  main = "Hair loss by age group",
+  xlab = "Age range",
+  ylab = "Number of individuals"
+)
+
+# Age group vs stress level
+cat("\nAge group vs stress level (hair loss individuals):\n")
+age_stress_table <- table(AgeGroup, HairFallH$Stress)
+print(age_stress_table)
+
+barplot(
+  age_stress_table,
+  beside = TRUE,
+  col    = c("#262626", "#b287fd", "#b2f142", "#d8d9dd"),
+  main   = "Stress level by age group (hair loss individuals)",
+  xlab   = "Stress level",
+  ylab   = "Number of individuals"
+)
+
+legend(
+  "topleft",
+  legend = rownames(age_stress_table),
+  fill   = c("#262626", "#b287fd", "#b2f142", "#d8d9dd"),
+  title  = "Age group"
+)
+```
+
+All three stress levels are meaningfully represented across every age group,
+confirming that neither age nor stress alone drives hair loss — the condition
+spans the full range of both dimensions.
+
+---
+
+## 4 — Descriptive Statistics and Advanced Visualisations
+
+### 4.1 — Descriptive Statistics
+
+```{r descriptive-stats, echo = FALSE}
+cat("DATASET STRUCTURE\n")
+str(HairFallH)
+
+cat("\nFull summary:\n")
+summary(HairFallH)
+
+# Numerical variables
+cat("\nNumerical variables:\n")
+summary(HairFallH[, c("Id", "Age")])
+
+# Categorical variables
+categorical_vars <- c(
+  "Genetics", "Hormonal Changes", "Medical Conditions",
+  "Stress", "Poor Hair Care Habits", "Smoking",
+  "Weight Loss", "Hair Loss"
+)
+
+for (var in categorical_vars) {
+  cat("\n====", var, "====\n")
+  print(table(HairFallH[[var]]))
+  cat("Proportions (%):",
+      round(prop.table(table(HairFallH[[var]])) * 100, 1), "\n")
+}
+```
+
+**Variable roles:**
+
+- **Age**: the only continuous variable; shows mean, median, range and distribution
+- **Id**: row identifier — no analytical value
+- **Hair Loss**: binary outcome variable (0 = no loss, 1 = loss)
+- **Stress**: ordinal with 3 levels (Low / Moderate / High)
+- **Medical Conditions, Genetics, Hormonal Changes…**: categorical risk factors
+
+### 4.2 — Age Distribution by Hair Loss (Boxplot)
+
+```{r boxplot-age-hairloss, echo = FALSE}
+boxplot(
+  Age ~ HairFallH$`Hair Loss`,
+  data  = HairFallH,
+  main  = "Age distribution by hair loss status",
+  xlab  = "Hair loss (0 = No, 1 = Yes)",
+  ylab  = "Age",
+  col   = c("#262626", "#b287fd")
+)
+```
+
+The age distributions for both groups are nearly identical, indicating that
+**age alone is not a determining factor** for hair loss. Its influence is likely
+amplified by other variables such as genetics, stress, medical conditions, and
+nutritional deficiencies — consistent with a multifactorial model.
+
+### 4.3 — Medical Conditions and Hair Loss (Heat Map)
+
+```{r heatmap-medical, echo = FALSE}
+# Contingency table: Medical Conditions vs Hair Loss
+med_hl_table  <- table(HairFallH$`Medical Conditions`, HairFallH$`Hair Loss`)
+prop_med_hl   <- prop.table(med_hl_table, margin = 1)
+prop_med_hl   <- round(prop_med_hl, 2)
+
+cat("Medical conditions vs hair loss (row proportions):\n")
+prop_med_hl
+
+# Convert to data frame for ggplot2
+df_med_hl <- as.data.frame(prop_med_hl)
+colnames(df_med_hl) <- c("MedicalCondition", "HairLoss", "Proportion")
+
+ggplot(df_med_hl, aes(x = HairLoss, y = MedicalCondition, fill = Proportion)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "#262626", high = "#b287fd") +
+  labs(
+    title = "Heat map: Medical conditions vs Hair loss",
+    x     = "Hair loss",
+    y     = "Medical condition",
+    fill  = "Proportion"
+  ) +
+  theme_minimal()
+```
+
+Among individuals **with hair loss (1)**, the most relevant medical conditions are:
+
+- **Androgenetic Alopecia** and **Alopecia Areata** — expected, as they are
+  defined by hair loss
+- **Seborrheic Dermatitis** — consistent with known weakening of the hair shaft
+  through excess sebum production
+
+### 4.4 — Age Distribution of Hair Loss Individuals: Normality Assessment
+
+```{r histogram-normality, echo = FALSE}
+# Filter to individuals with hair loss
+hl_subset <- subset(HairFallH, HairFallH$`Hair Loss` == "1")
+
+cat("Sample size:", nrow(hl_subset), "\n")
+
+age_mean <- mean(hl_subset$Age)
+age_sd   <- sd(hl_subset$Age)
+cat("Mean age:", age_mean, "\n")
+cat("Std dev: ", age_sd, "\n")
+
+fd_breaks <- nclass.FD(hl_subset$Age)
+
+hist(
+  hl_subset$Age,
+  breaks = fd_breaks,
+  col    = "#b287fd",
+  prob   = TRUE,
+  main   = "Age distribution — individuals with hair loss",
+  xlab   = "Age",
+  ylab   = "Density",
+  ylim   = c(0, 0.05)
+)
+
+legend(
+  "topright",
+  legend = c("Empirical density", "Theoretical normal"),
+  col    = c("red", "#262626"),
+  lwd    = 2,
+  lty    = c(1, 2)
+)
+
+# Empirical density curve
+lines(density(hl_subset$Age), col = "red", lwd = 2)
+
+# Theoretical normal curve
+curve(
+  dnorm(x, mean = age_mean, sd = age_sd),
+  add = TRUE, col = "black", lwd = 2, lty = 2
+)
+```
+
+The **empirical density (red)** and **theoretical normal (black dashed)** curves
+diverge clearly. The distribution is right-skewed, with a pronounced peak around
+20–25 years and a sharp decline after 40.
+
+**Conclusion:** The age variable among hair loss individuals does **not** follow
+a normal distribution. This means subsequent statistical comparisons should use
+**non-parametric tests** rather than t-tests or ANOVA.
